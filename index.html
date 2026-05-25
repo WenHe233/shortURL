@@ -310,7 +310,7 @@
   }
 
   function buildShortUrl(encoded) {
-    return location.origin + location.pathname + '#' + encoded;
+    return location.origin + location.pathname + '?' + encoded;
   }
 
   /* ─── UI elements ─── */
@@ -391,7 +391,7 @@
   function showResult(url, encoded) {
     currentShortUrl = buildShortUrl(encoded);
     currentHash = encoded;
-    resultBase.textContent = location.origin + location.pathname + '#';
+    resultBase.textContent = location.origin + location.pathname + '?';
     resultZWCnt.textContent = encoded.length + ' characters';
     resultDiv.classList.add('visible');
     inputErr.style.display = 'none';
@@ -472,7 +472,31 @@
       }
     }
 
-    // Mode 2: ?url= -> JSON API
+    // Mode 2: query with zero-width chars -> decode & redirect
+    var rawQuery = location.search.slice(1);
+    if (rawQuery) {
+      var dq = rawQuery;
+      if (rawQuery.indexOf('%') >= 0) {
+        try { dq = decodeURIComponent(rawQuery); } catch (e) {}
+      }
+      var qZW = '';
+      for (var qi = 0; qi < dq.length; qi++) {
+        if (ZW_SET[dq[qi]]) qZW += dq[qi];
+      }
+      if (qZW.length > 0 && qZW.length % 4 === 0) {
+        try {
+          var qUrl = decode(qZW);
+          try { new URL(qUrl); } catch (e) { throw new Error('解码结果不是合法链接'); }
+          location.replace(qUrl);
+          return;
+        } catch (e) {
+          showErrorPage('此短链接无效或已损坏');
+          return;
+        }
+      }
+    }
+
+    // Mode 3: ?url= -> JSON API
     if (params.has('url')) {
       try {
         var apiUrl = validateURL(params.get('url'));
