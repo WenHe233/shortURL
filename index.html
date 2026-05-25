@@ -429,13 +429,40 @@
 
   /* ─── routing ─── */
   function route() {
-    var hash = location.hash.slice(1);
+    // Extract raw hash - try location.hash first, fall back to location.href
+    var raw = '';
+    if (location.hash && location.hash.length > 1) {
+      raw = location.hash.slice(1);
+    }
+    if (!raw) {
+      var idx = location.href.indexOf('#');
+      if (idx >= 0) raw = location.href.slice(idx + 1);
+    }
+
+    // URL-decode in case browser percent-encodes ZW chars in location.hash
+    var hash = raw;
+    if (raw.indexOf('%') >= 0) {
+      try {
+        var decoded = decodeURIComponent(raw);
+        // Only use decoded if it actually contains ZW chars
+        for (var k = 0; k < decoded.length; k++) {
+          if (ZW_SET[decoded[k]]) { hash = decoded; break; }
+        }
+      } catch (e) { /* leave hash as raw */ }
+    }
+
+    // Filter: keep only valid ZW chars (defensive)
+    var zwOnly = '';
+    for (var i = 0; i < hash.length; i++) {
+      if (ZW_SET[hash[i]]) zwOnly += hash[i];
+    }
+
     var params = new URLSearchParams(location.search);
 
     // Mode 1: hash with zero-width chars -> decode & redirect
-    if (hash.length > 0 && ZW_REGEX.test(hash)) {
+    if (zwOnly.length > 0 && zwOnly.length % 4 === 0) {
       try {
-        var url = decode(hash);
+        var url = decode(zwOnly);
         try { new URL(url); } catch (e) { throw new Error('解码结果不是合法链接'); }
         location.replace(url);
         return;
