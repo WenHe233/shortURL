@@ -16,8 +16,6 @@
     --error-bg: #fef2f2;
     --error-text: #dc2626;
     --error-border: #fecaca;
-    --success-bg: #f0fdf4;
-    --success-text: #16a34a;
     --zw-bg: #f0f0ff;
     --zw-border: #c7d2fe;
     --shadow: 0 4px 24px rgba(0,0,0,0.08);
@@ -34,8 +32,6 @@
       --error-bg: #3b1111;
       --error-text: #fca5a5;
       --error-border: #7f1d1d;
-      --success-bg: #0d2818;
-      --success-text: #86efac;
       --zw-bg: #1e1e3a;
       --zw-border: #3730a3;
       --shadow: 0 4px 24px rgba(0,0,0,0.3);
@@ -244,9 +240,21 @@
   'use strict';
 
   /* ─── constants ─── */
-  var ZW = ['​', '‌', '‍', '﻿'];
-  var ZW_MAP = { '​': 0, '‌': 1, '‍': 2, '﻿': 3 };
-  var ZW_REGEX = /^[​‌‍﻿]+$/;
+  var ZW = ['\u200B', '\u200C', '\u200D', '\uFEFF'];
+
+  var ZW_SET = {};
+  ZW_SET[ZW[0]] = true;
+  ZW_SET[ZW[1]] = true;
+  ZW_SET[ZW[2]] = true;
+  ZW_SET[ZW[3]] = true;
+
+  var ZW_MAP = {};
+  ZW_MAP[ZW[0]] = 0;
+  ZW_MAP[ZW[1]] = 1;
+  ZW_MAP[ZW[2]] = 2;
+  ZW_MAP[ZW[3]] = 3;
+
+  var ZW_REGEX = /^[\u200B\u200C\u200D\uFEFF]+$/;
 
   /* ─── encode / decode ─── */
   function encode(url) {
@@ -335,7 +343,6 @@
     navigator.clipboard.writeText(text).then(function () {
       showToast((label || '已复制') + ' ✔');
     }).catch(function () {
-      // fallback for old browsers / non-HTTPS
       var ta = document.createElement('textarea');
       ta.value = text;
       ta.style.position = 'fixed';
@@ -355,7 +362,6 @@
     if (qrVisible) {
       qrContainer.style.display = 'flex';
       qrContainer.innerHTML = '';
-      // use qrcodejs if loaded, else fallback to API image
       if (typeof QRCode !== 'undefined') {
         new QRCode(qrContainer, {
           text: currentShortUrl,
@@ -390,7 +396,6 @@
     resultDiv.classList.add('visible');
     inputErr.style.display = 'none';
 
-    // reset QR
     qrVisible = false;
     qrContainer.style.display = 'none';
     qrContainer.innerHTML = '';
@@ -427,21 +432,20 @@
     var hash = location.hash.slice(1);
     var params = new URLSearchParams(location.search);
 
-    // Mode 1: hash with zero-width chars → decode & redirect
+    // Mode 1: hash with zero-width chars -> decode & redirect
     if (hash.length > 0 && ZW_REGEX.test(hash)) {
       try {
         var url = decode(hash);
-        // validate decoded URL
         try { new URL(url); } catch (e) { throw new Error('解码结果不是合法链接'); }
         location.replace(url);
-        return; // page will navigate away
+        return;
       } catch (e) {
         showErrorPage('此短链接无效或已损坏');
         return;
       }
     }
 
-    // Mode 2: ?url= → JSON API
+    // Mode 2: ?url= -> JSON API
     if (params.has('url')) {
       try {
         var apiUrl = validateURL(params.get('url'));
@@ -465,9 +469,6 @@
     }
 
     // Mode 3: interactive UI
-    // (page is already the UI, just wire up events)
-
-    // If hash existed but wasn't valid ZW, ignore it (normal hash on the page)
   }
 
   /* ─── event binding ─── */
@@ -497,7 +498,6 @@
     location.replace(location.origin + location.pathname);
   });
 
-  // hide input error on input
   urlInput.addEventListener('input', function () {
     if (inputErr.style.display !== 'none') {
       inputErr.style.display = 'none';
