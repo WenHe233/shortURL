@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>短网址 - Zero-Width Short URL</title>
+<style>
+  :root {
+    --bg: #f5f5f5;
+    --card-bg: #fff;
+    --text: #333;
+    --text-secondary: #666;
+    --border: #e0e0e0;
+    --accent: #4f46e5;
+    --accent-hover: #4338ca;
+    --error-bg: #fef2f2;
+    --error-text: #dc2626;
+    --error-border: #fecaca;
+    --success-bg: #f0fdf4;
+    --success-text: #16a34a;
+    --zw-bg: #f0f0ff;
+    --zw-border: #c7d2fe;
+    --shadow: 0 4px 24px rgba(0,0,0,0.08);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1a1a2e;
+      --card-bg: #222240;
+      --text: #e0e0e0;
+      --text-secondary: #a0a0b0;
+      --border: #333350;
+      --accent: #818cf8;
+      --accent-hover: #6366f1;
+      --error-bg: #3b1111;
+      --error-text: #fca5a5;
+      --error-border: #7f1d1d;
+      --success-bg: #0d2818;
+      --success-text: #86efac;
+      --zw-bg: #1e1e3a;
+      --zw-border: #3730a3;
+      --shadow: 0 4px 24px rgba(0,0,0,0.3);
+    }
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  main {
+    background: var(--card-bg);
+    border-radius: 16px;
+    box-shadow: var(--shadow);
+    padding: 40px;
+    max-width: 520px;
+    width: 100%;
+  }
+  h1 {
+    font-size: 28px;
+    font-weight: 700;
+    text-align: center;
+    margin-bottom: 6px;
+    letter-spacing: -0.5px;
+  }
+  .subtitle {
+    text-align: center;
+    color: var(--text-secondary);
+    font-size: 14px;
+    margin-bottom: 32px;
+  }
+  .input-group {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+  }
+  #url-input {
+    flex: 1;
+    padding: 12px 16px;
+    border: 2px solid var(--border);
+    border-radius: 10px;
+    font-size: 15px;
+    background: var(--bg);
+    color: var(--text);
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  #url-input:focus {
+    border-color: var(--accent);
+  }
+  button {
+    padding: 12px 24px;
+    border: none;
+    border-radius: 10px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.1s;
+  }
+  button:active { transform: scale(0.97); }
+  .btn-primary {
+    background: var(--accent);
+    color: #fff;
+  }
+  .btn-primary:hover { background: var(--accent-hover); }
+  .btn-secondary {
+    background: transparent;
+    color: var(--accent);
+    border: 2px solid var(--accent);
+  }
+  .btn-secondary:hover { background: var(--accent); color: #fff; }
+  #result { display: none; }
+  #result.visible { display: block; }
+  .result-box {
+    background: var(--zw-bg);
+    border: 2px solid var(--zw-border);
+    border-radius: 10px;
+    padding: 16px;
+    margin-bottom: 16px;
+    word-break: break-all;
+    position: relative;
+  }
+  .result-base {
+    font-family: "SF Mono", "Fira Code", "Consolas", monospace;
+    font-size: 13px;
+    color: var(--text);
+  }
+  .result-zw {
+    display: inline-block;
+    background: var(--accent);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 12px;
+    margin-left: 6px;
+    vertical-align: middle;
+    white-space: nowrap;
+  }
+  .result-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .result-actions button { font-size: 13px; padding: 8px 16px; }
+  .qr-container {
+    display: flex;
+    justify-content: center;
+    margin: 20px 0;
+  }
+  .qr-container canvas, .qr-container img {
+    border-radius: 8px;
+    border: 1px solid var(--border);
+  }
+  .toast {
+    position: fixed;
+    bottom: 30px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #333;
+    color: #fff;
+    padding: 10px 24px;
+    border-radius: 20px;
+    font-size: 14px;
+    opacity: 0;
+    transition: opacity 0.3s;
+    pointer-events: none;
+    z-index: 100;
+  }
+  .toast.show { opacity: 1; }
+  #error-msg { display: none; }
+  #error-msg.visible { display: block; }
+  .error-card {
+    background: var(--error-bg);
+    border: 1px solid var(--error-border);
+    border-radius: 10px;
+    padding: 20px;
+    text-align: center;
+  }
+  .error-card .icon { font-size: 36px; margin-bottom: 8px; }
+  .error-card p { color: var(--error-text); font-size: 14px; margin-bottom: 16px; }
+  footer {
+    text-align: center;
+    margin-top: 24px;
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
+  footer a { color: var(--accent); text-decoration: none; }
+</style>
+</head>
+<body>
+
+<main>
+  <div id="ui-panel">
+    <h1>短网址</h1>
+    <p class="subtitle">用零宽空格编码的不可见短链接</p>
+    <div class="input-group">
+      <input
+        type="text"
+        id="url-input"
+        placeholder="粘贴长链接，自动补全 https://"
+        autocomplete="off"
+        autocorrect="off"
+        autocapitalize="off"
+        spellcheck="false"
+        autofocus
+      >
+      <button class="btn-primary" id="submit-btn">缩短</button>
+    </div>
+    <div id="input-error" style="display:none;color:var(--error-text);font-size:13px;margin-top:-12px;margin-bottom:12px;"></div>
+    <div id="result">
+      <div class="result-box">
+        <span class="result-base" id="result-base-url"></span>
+        <span class="result-zw" id="result-zw-count"></span>
+      </div>
+      <div class="result-actions">
+        <button class="btn-primary" id="copy-full">复制完整链接</button>
+        <button class="btn-secondary" id="copy-hash">仅复制 Hash</button>
+        <button class="btn-secondary" id="show-qr-btn">显示 QR 码</button>
+      </div>
+      <div class="qr-container" id="qr-container" style="display:none;"></div>
+    </div>
+  </div>
+  <div id="error-msg">
+    <div class="error-card">
+      <div class="icon">&#9888;</div>
+      <p id="error-text">此短链接无效或已损坏</p>
+      <button class="btn-primary" id="back-btn">返回首页</button>
+    </div>
+  </div>
+  <footer>
+    基于零宽字符编码 &middot; <a href="https://github.com" target="_blank" rel="noopener">GitHub</a>
+  </footer>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ─── constants ─── */
+  var ZW = ['​', '‌', '‍', '﻿'];
+  var ZW_MAP = { '​': 0, '‌': 1, '‍': 2, '﻿': 3 };
+  var ZW_REGEX = /^[​‌‍﻿]+$/;
+
+  /* ─── encode / decode ─── */
+  function encode(url) {
+    var bytes = new TextEncoder().encode(url);
+    var result = '';
+    for (var i = 0; i < bytes.length; i++) {
+      var b = bytes[i];
+      result += ZW[(b >> 6) & 3];
+      result += ZW[(b >> 4) & 3];
+      result += ZW[(b >> 2) & 3];
+      result += ZW[b & 3];
+    }
+    return result;
+  }
+
+  function decode(zwStr) {
+    if (zwStr.length % 4 !== 0) {
+      throw new Error('编码长度异常');
+    }
+    var len = zwStr.length / 4;
+    var bytes = new Uint8Array(len);
+    for (var i = 0; i < zwStr.length; i += 4) {
+      var byte = 0;
+      for (var j = 0; j < 4; j++) {
+        var ch = zwStr[i + j];
+        if (!(ch in ZW_MAP)) {
+          throw new Error('包含非零宽字符');
+        }
+        byte = (byte << 2) | ZW_MAP[ch];
+      }
+      bytes[i / 4] = byte;
+    }
+    return new TextDecoder().decode(bytes);
+  }
+
+  /* ─── validate ─── */
+  function validateURL(input) {
+    var url = input.trim();
+    if (!url) throw new Error('请输入链接地址');
+    if (!/^https?:\/\//i.test(url)) {
+      url = 'https://' + url;
+    }
+    var parsed;
+    try {
+      parsed = new URL(url);
+    } catch (e) {
+      throw new Error('链接格式不合法');
+    }
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      throw new Error('仅支持 http / https 协议');
+    }
+    return parsed.href;
+  }
+
+  function buildShortUrl(encoded) {
+    return location.origin + location.pathname + '#' + encoded;
+  }
+
+  /* ─── UI elements ─── */
+  var uiPanel = document.getElementById('ui-panel');
+  var errorMsg = document.getElementById('error-msg');
+  var urlInput = document.getElementById('url-input');
+  var submitBtn = document.getElementById('submit-btn');
+  var resultDiv = document.getElementById('result');
+  var resultBase = document.getElementById('result-base-url');
+  var resultZWCnt = document.getElementById('result-zw-count');
+  var inputErr = document.getElementById('input-error');
+  var errorText = document.getElementById('error-text');
+  var qrContainer = document.getElementById('qr-container');
+  var toast = document.getElementById('toast');
+
+  var currentShortUrl = '';
+  var currentHash = '';
+
+  /* ─── toast ─── */
+  var toastTimer = 0;
+  function showToast(msg) {
+    clearTimeout(toastTimer);
+    toast.textContent = msg;
+    toast.classList.add('show');
+    toastTimer = setTimeout(function () { toast.classList.remove('show'); }, 2000);
+  }
+
+  /* ─── copy ─── */
+  function copyText(text, label) {
+    navigator.clipboard.writeText(text).then(function () {
+      showToast((label || '已复制') + ' ✔');
+    }).catch(function () {
+      // fallback for old browsers / non-HTTPS
+      var ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.left = '-9999px';
+      document.body.appendChild(ta);
+      ta.select();
+      try { document.execCommand('copy'); showToast((label || '已复制') + ' ✔'); }
+      catch (e) { showToast('复制失败，请手动选择复制'); }
+      document.body.removeChild(ta);
+    });
+  }
+
+  /* ─── QR code ─── */
+  var qrVisible = false;
+  function toggleQR() {
+    qrVisible = !qrVisible;
+    if (qrVisible) {
+      qrContainer.style.display = 'flex';
+      qrContainer.innerHTML = '';
+      // use qrcodejs if loaded, else fallback to API image
+      if (typeof QRCode !== 'undefined') {
+        new QRCode(qrContainer, {
+          text: currentShortUrl,
+          width: 200,
+          height: 200,
+          colorDark: '#000',
+          colorLight: '#fff'
+        });
+      } else {
+        var img = document.createElement('img');
+        img.src = 'https://api.qrserver.com/v1/create-qr-code/?size=200x200&data='
+          + encodeURIComponent(currentShortUrl);
+        img.width = 200;
+        img.height = 200;
+        img.alt = 'QR Code';
+        qrContainer.appendChild(img);
+      }
+      document.getElementById('show-qr-btn').textContent = '隐藏 QR 码';
+    } else {
+      qrContainer.style.display = 'none';
+      qrContainer.innerHTML = '';
+      document.getElementById('show-qr-btn').textContent = '显示 QR 码';
+    }
+  }
+
+  /* ─── show result ─── */
+  function showResult(url, encoded) {
+    currentShortUrl = buildShortUrl(encoded);
+    currentHash = encoded;
+    resultBase.textContent = location.origin + location.pathname + '#';
+    resultZWCnt.textContent = encoded.length + ' characters';
+    resultDiv.classList.add('visible');
+    inputErr.style.display = 'none';
+
+    // reset QR
+    qrVisible = false;
+    qrContainer.style.display = 'none';
+    qrContainer.innerHTML = '';
+    document.getElementById('show-qr-btn').textContent = '显示 QR 码';
+  }
+
+  /* ─── show input error ─── */
+  function showInputError(msg) {
+    inputErr.textContent = msg;
+    inputErr.style.display = 'block';
+    resultDiv.classList.remove('visible');
+  }
+
+  /* ─── handle submit ─── */
+  function handleSubmit() {
+    try {
+      var url = validateURL(urlInput.value);
+      var encoded = encode(url);
+      showResult(url, encoded);
+    } catch (e) {
+      showInputError(e.message);
+    }
+  }
+
+  /* ─── show error page ─── */
+  function showErrorPage(msg) {
+    uiPanel.style.display = 'none';
+    errorMsg.classList.add('visible');
+    errorText.textContent = msg || '此短链接无效或已损坏';
+  }
+
+  /* ─── routing ─── */
+  function route() {
+    var hash = location.hash.slice(1);
+    var params = new URLSearchParams(location.search);
+
+    // Mode 1: hash with zero-width chars → decode & redirect
+    if (hash.length > 0 && ZW_REGEX.test(hash)) {
+      try {
+        var url = decode(hash);
+        // validate decoded URL
+        try { new URL(url); } catch (e) { throw new Error('解码结果不是合法链接'); }
+        location.replace(url);
+        return; // page will navigate away
+      } catch (e) {
+        showErrorPage('此短链接无效或已损坏');
+        return;
+      }
+    }
+
+    // Mode 2: ?url= → JSON API
+    if (params.has('url')) {
+      try {
+        var apiUrl = validateURL(params.get('url'));
+        var apiEncoded = encode(apiUrl);
+        var apiShortUrl = buildShortUrl(apiEncoded);
+        document.head.innerHTML = '';
+        document.body.textContent = JSON.stringify({
+          success: true,
+          shortUrl: apiShortUrl,
+          originalUrl: apiUrl,
+          encodedLength: apiEncoded.length
+        }, null, 2);
+      } catch (e) {
+        document.head.innerHTML = '';
+        document.body.textContent = JSON.stringify({
+          success: false,
+          error: e.message
+        }, null, 2);
+      }
+      return;
+    }
+
+    // Mode 3: interactive UI
+    // (page is already the UI, just wire up events)
+
+    // If hash existed but wasn't valid ZW, ignore it (normal hash on the page)
+  }
+
+  /* ─── event binding ─── */
+  submitBtn.addEventListener('click', function (e) {
+    e.preventDefault();
+    handleSubmit();
+  });
+
+  urlInput.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleSubmit();
+    }
+  });
+
+  document.getElementById('copy-full').addEventListener('click', function () {
+    copyText(currentShortUrl, '链接已复制');
+  });
+
+  document.getElementById('copy-hash').addEventListener('click', function () {
+    copyText(currentHash, 'Hash 已复制');
+  });
+
+  document.getElementById('show-qr-btn').addEventListener('click', toggleQR);
+
+  document.getElementById('back-btn').addEventListener('click', function () {
+    location.replace(location.origin + location.pathname);
+  });
+
+  // hide input error on input
+  urlInput.addEventListener('input', function () {
+    if (inputErr.style.display !== 'none') {
+      inputErr.style.display = 'none';
+    }
+  });
+
+  /* ─── startup ─── */
+  route();
+})();
+</script>
+
+</body>
+</html>
